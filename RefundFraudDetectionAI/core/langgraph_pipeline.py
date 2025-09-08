@@ -2,6 +2,7 @@ from typing import Dict, Any
 from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI  # or swap with Ollama
 from langchain.prompts import PromptTemplate
+import os
 
 
 class FraudDetectionGraph:
@@ -10,10 +11,18 @@ class FraudDetectionGraph:
         self.vector_store = vector_store
 
         # Choose LLM backend
-        if llm_backend == "openai":
+        # Prefer Groq on cloud when GROQ_API_KEY is present
+        groq_key = os.getenv("GROQ_API_KEY")
+        if groq_key:
+            # Route OpenAI-compatible client to Groq
+            os.environ["OPENAI_API_KEY"] = groq_key
+            os.environ["OPENAI_BASE_URL"] = "https://api.groq.com/openai/v1"
+            # Pick a Groq-supported model, e.g., llama3-8b-instant
+            self.llm = ChatOpenAI(model="llama3-8b-instant", temperature=0)
+        elif llm_backend == "openai":
             self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
         else:
-            # Free Ollama setup (local inference)
+            # Local fallback via Ollama
             from langchain_ollama import OllamaLLM
             self.llm = OllamaLLM(model="llama3")
 
