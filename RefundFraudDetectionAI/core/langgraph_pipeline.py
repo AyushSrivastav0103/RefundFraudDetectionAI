@@ -16,7 +16,7 @@ class FraudDetectionGraph:
         if groq_key:
             # Route OpenAI-compatible client to Groq
             self.llm = ChatOpenAI(
-                model="llama3-8b-instant",
+                model="llama-3.1-8b-instant",
                 openai_api_key=groq_key,
                 openai_api_base="https://api.groq.com/openai/v1",
                 temperature=0
