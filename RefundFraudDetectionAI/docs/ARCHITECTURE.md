@@ -19,22 +19,22 @@
 ```mermaid
 flowchart LR
   subgraph Training
-    A[Generate Synthetic Data\n data/generate_synthetic_data.py]
-    B[Engineer Features\n core/features.py]
-    C[Train Model\n core/model.py]
-    D[Build FAISS Index\n core/vectorstore.py]
+    A[Generate Synthetic Data<br/>data/generate_synthetic_data.py]
+    B[Engineer Features<br/>core/features.py]
+    C[Train Model<br/>core/model.py]
+    D[Build FAISS Index<br/>core/vectorstore.py]
     A --> B --> C
     B --> D
     C -->|save| M[(models/fraud_model.pkl)]
     D -->|save| I[(models/faiss_index.*)]
   end
 
-  subgraph Inference (LangGraph)
+  subgraph Inference_LangGraph
     X[Input Claim + History]
-    G1[ml_check\n model.predict]
-    G2[faiss_check\n similar claims]
-    G3[llm_reasoning\n explanation]
-    X --> G1 --> G2 --> G3 --> Y[Final Decision\n scores + neighbors + rationale]
+    G1[ml_check<br/>model.predict]
+    G2[faiss_check<br/>similar claims]
+    G3[llm_reasoning<br/>explanation]
+    X --> G1 --> G2 --> G3 --> Y[Final Decision<br/>scores + neighbors + rationale]
   end
 
   M -.load.-> G1
