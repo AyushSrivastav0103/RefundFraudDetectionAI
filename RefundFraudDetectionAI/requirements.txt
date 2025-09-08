@@ -1,0 +1,16 @@
+pandas
+numpy
+scikit-learn
+xgboost
+faiss-cpu
+langchain
+langgraph
+openai
+streamlit
+matplotlib
+seaborn
+nltk
+sentence-transformers
+joblib
+langchain-openai
+langchain-ollama
