@@ -15,10 +15,12 @@ class FraudDetectionGraph:
         groq_key = os.getenv("GROQ_API_KEY")
         if groq_key:
             # Route OpenAI-compatible client to Groq
-            os.environ["OPENAI_API_KEY"] = groq_key
-            os.environ["OPENAI_BASE_URL"] = "https://api.groq.com/openai/v1"
-            # Pick a Groq-supported model, e.g., llama3-8b-instant
-            self.llm = ChatOpenAI(model="llama3-8b-instant", temperature=0)
+            self.llm = ChatOpenAI(
+                model="llama3-8b-instant",
+                openai_api_key=groq_key,
+                openai_api_base="https://api.groq.com/openai/v1",
+                temperature=0
+            )
         elif llm_backend == "openai":
             self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
         else:
