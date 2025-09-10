@@ -1,6 +1,7 @@
 import os
 import sys
 import streamlit as st
+import re
 
 # Ensure the project root is on sys.path so package imports work when run via streamlit
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -20,8 +21,16 @@ def get_pipeline():
 
 pipeline = get_pipeline()
 
-claim_text = st.text_area("Claim description", height=150, placeholder="I never received my package, but tracking shows it was delivered.")
-user_history = st.text_area("User history (optional)", height=100, placeholder="Past 3 refund requests in last 2 months for similar reasons.")
+claim_text = st.text_area(
+    "Claim description", 
+    height=150, 
+    placeholder="I never received my package, but tracking shows it was delivered."
+)
+user_history = st.text_area(
+    "User history (optional)", 
+    height=100, 
+    placeholder="Past 3 refund requests in last 2 months for similar reasons."
+)
 
 if 'history' not in st.session_state:
     st.session_state['history'] = []
@@ -43,49 +52,76 @@ if st.button("Analyze"):
             except Exception as e:
                 st.error(f"Error: {e}")
                 result = None
+
         if result:
-            # --- LLM Rationale First ---
-            st.subheader("AI Investigator Rationale")
+            # === LLM Investigator Output (Primary) ===
+            st.subheader("🤖 AI Investigator Rationale")
             rationale = result.get("llm_reasoning", "(no rationale)")
+            safe_rationale = rationale.replace("<", "&lt;").replace(">", "&gt;")
+
+            background = "rgba(33,150,243,0.05)"  # faint blue tint
             st.markdown(
                 f"""
-                <div style=\"border:2px solid #ddd; border-radius:10px; padding:15px; background-color:#f9f9f9;\">
-                    <span style=\"font-size:1.1em; font-weight:bold; color:#333;\">{rationale}</span>
+                <div style="font-size:1.1em; line-height:1.5; padding:0.8em; 
+                            border-left: 4px solid #2196f3; 
+                            background-color:{background}; 
+                            border-radius:6px;">
+                    <pre style="white-space:pre-wrap; font-family:inherit; font-size:1em; margin:0;">
+{safe_rationale}
+                    </pre>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
 
-            # --- Fraud Risk Score as Support ---
-            st.subheader("Fraud Risk Score")
+            # Try to extract LLM fraud probability if present
+            llm_prob = None
+            match = re.search(r"Fraud Probability:\s*(\d+)%", rationale)
+            if match:
+                llm_prob = int(match.group(1))
+
+            if llm_prob is not None:
+                color = "#4caf50" if llm_prob < 30 else ("#ff9800" if llm_prob < 70 else "#f44336")
+                st.markdown(
+                    f'<div style="font-size:1.3em;font-weight:bold;color:{color};">'
+                    f"AI Assessed Fraud Probability: {llm_prob}%</div>",
+                    unsafe_allow_html=True
+                )
+                st.progress(min(llm_prob, 100), text=f"{llm_prob}%")
+
+            # === ML/Heuristic Scores (Secondary) ===
+            st.subheader("📊 Model Scores (Baseline)")
             blended = result.get('ml_score_blended', result.get('ml_score', 0.0))
             model_pct = result.get('ml_score_model', 0.0)
             heur_pct = result.get('ml_score_heuristic', 0.0)
 
-            if blended < 20:
-                band, color = "Low", "#4caf50"
-            elif blended < 60:
-                band, color = "Medium", "#ff9800"
-            else:
-                band, color = "High", "#f44336"
+            band = "Low" if blended < 20 else ("Medium" if blended < 60 else "High")
+            color = "#4caf50" if band == "Low" else ("#ff9800" if band == "Medium" else "#f44336")
 
-            st.markdown(f'<div style="font-size:1.3em;font-weight:bold;color:{color};">Risk: {band} ({blended:.1f}%)</div>', unsafe_allow_html=True)
-            st.progress(min(int(blended), 100), text=f"{blended:.1f}%")
+            st.markdown(
+                f'<div style="font-size:1.1em;font-weight:bold;color:{color};">'
+                f"Risk Band (ML Baseline): {band} ({blended:.1f}%)</div>",
+                unsafe_allow_html=True
+            )
 
-            # --- Extra Details Hidden ---
-            with st.expander("Details: Scores"):
+            with st.expander("Details: ML Scores"):
                 st.write(f"Model probability: {model_pct:.1f}%")
                 st.write(f"Heuristic score: {heur_pct:.1f}%")
 
-            with st.expander("Similar Claims"):
-                for r in result.get("similar_claims", []) or []:
-                    st.write(f"- {r['claim_text']} (sim={r.get('similarity', r.get('similarity_score', 0.0)):.3f})")
+            # === Similar Claims ===
+            st.subheader("🔍 Similar Claims")
+            for r in result.get("similar_claims", []) or []:
+                st.write(f"- {r['claim_text']} (sim={r.get('similarity', r.get('similarity_score', 0.0)):.3f})")
 
 # Show history of past runs
 if st.session_state['history']:
     st.sidebar.header("Past Analyses")
     for i, entry in enumerate(reversed(st.session_state['history'])):
         st.sidebar.markdown(f"**Claim {len(st.session_state['history'])-i}:** {entry['claim_text'][:40]}...")
-        st.sidebar.markdown(f"Risk: {entry['result'].get('ml_score_blended', entry['result'].get('ml_score', 0.0)):.1f}%")
-        st.sidebar.markdown(f"LLM: {entry['result'].get('llm_reasoning', '(no rationale)')[:60]}...")
+        st.sidebar.markdown(
+            f"Risk: {entry['result'].get('ml_score_blended', entry['result'].get('ml_score', 0.0)):.1f}%"
+        )
+        st.sidebar.markdown(
+            f"LLM: {entry['result'].get('llm_reasoning', '(no rationale)')[:60]}..."
+        )
         st.sidebar.markdown("---")
