@@ -23,26 +23,55 @@ pipeline = get_pipeline()
 claim_text = st.text_area("Claim description", height=150, placeholder="I never received my package, but tracking shows it was delivered.")
 user_history = st.text_area("User history (optional)", height=100, placeholder="Past 3 refund requests in last 2 months for similar reasons.")
 
+if 'history' not in st.session_state:
+    st.session_state['history'] = []
+
 if st.button("Analyze"):
     if not claim_text.strip():
         st.warning("Please enter a claim description.")
     else:
         with st.spinner("Analyzing claim..."):
-            result = pipeline.run(claim_text, user_history)
-        st.success("Done!")
-        st.subheader("Results")
-        blended = result.get('ml_score_blended', result.get('ml_score', 0.0))
-        model_pct = result.get('ml_score_model', 0.0)
-        heur_pct = result.get('ml_score_heuristic', 0.0)
+            try:
+                result = pipeline.run(claim_text, user_history)
+                st.success("Done!")
+                # Save to history
+                st.session_state['history'].append({
+                    'claim_text': claim_text,
+                    'user_history': user_history,
+                    'result': result
+                })
+            except Exception as e:
+                st.error(f"Error: {e}")
+                result = None
+        if result:
+            st.subheader("Results")
+            blended = result.get('ml_score_blended', result.get('ml_score', 0.0))
+            model_pct = result.get('ml_score_model', 0.0)
+            heur_pct = result.get('ml_score_heuristic', 0.0)
 
-        # Risk band
-        band = "Low" if blended < 20 else ("Medium" if blended < 60 else "High")
-        st.metric(f"Risk ({band})", f"{blended:.1f}%")
-        with st.expander("Details: Scores"):
-            st.write(f"Model probability: {model_pct:.1f}%")
-            st.write(f"Heuristic score: {heur_pct:.1f}%")
-        st.write("Similar claims:")
-        for r in result.get("similar_claims", []) or []:
-            st.write(f"- {r['claim_text']} (sim={r['similarity']:.3f})")
-        st.write("\nLLM rationale:")
-        st.write(result.get("llm_reasoning", "(no rationale)"))
+            # Risk band and color
+            if blended < 20:
+                band, color = "Low", "#4caf50"
+            elif blended < 60:
+                band, color = "Medium", "#ff9800"
+            else:
+                band, color = "High", "#f44336"
+            st.markdown(f'<div style="font-size:1.3em;font-weight:bold;color:{color};">Risk: {band} ({blended:.1f}%)</div>', unsafe_allow_html=True)
+            st.progress(min(int(blended), 100), text=f"{blended:.1f}%")
+            with st.expander("Details: Scores"):
+                st.write(f"Model probability: {model_pct:.1f}%")
+                st.write(f"Heuristic score: {heur_pct:.1f}%")
+            st.write("Similar claims:")
+            for r in result.get("similar_claims", []) or []:
+                st.write(f"- {r['claim_text']} (sim={r.get('similarity', r.get('similarity_score', 0.0)):.3f})")
+            st.write("\nLLM rationale:")
+            st.markdown(result.get("llm_reasoning", "(no rationale)"))
+
+# Show history of past runs
+if st.session_state['history']:
+    st.sidebar.header("Past Analyses")
+    for i, entry in enumerate(reversed(st.session_state['history'])):
+        st.sidebar.markdown(f"**Claim {len(st.session_state['history'])-i}:** {entry['claim_text'][:40]}...")
+        st.sidebar.markdown(f"Risk: {entry['result'].get('ml_score_blended', entry['result'].get('ml_score', 0.0)):.1f}%")
+        st.sidebar.markdown(f"LLM: {entry['result'].get('llm_reasoning', '(no rationale)')[:60]}...")
+        st.sidebar.markdown("---")
