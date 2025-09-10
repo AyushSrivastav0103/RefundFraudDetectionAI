@@ -97,7 +97,7 @@ class FraudDetectionGraph:
             - Respond ONLY in strict JSON with two fields:
               {{
                 "fraud_probability": number (0-100),
-                "reasoning": "short explanation"
+                "reasoning": "In Depth Explanation of why the claim is suspicious or not."
               }}
             """
         )
