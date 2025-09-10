@@ -44,28 +44,42 @@ if st.button("Analyze"):
                 st.error(f"Error: {e}")
                 result = None
         if result:
-            st.subheader("Results")
+            # --- LLM Rationale First ---
+            st.subheader("AI Investigator Rationale")
+            rationale = result.get("llm_reasoning", "(no rationale)")
+            st.markdown(
+                f"""
+                <div style=\"border:2px solid #ddd; border-radius:10px; padding:15px; background-color:#f9f9f9;\">
+                    <span style=\"font-size:1.1em; font-weight:bold; color:#333;\">{rationale}</span>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # --- Fraud Risk Score as Support ---
+            st.subheader("Fraud Risk Score")
             blended = result.get('ml_score_blended', result.get('ml_score', 0.0))
             model_pct = result.get('ml_score_model', 0.0)
             heur_pct = result.get('ml_score_heuristic', 0.0)
 
-            # Risk band and color
             if blended < 20:
                 band, color = "Low", "#4caf50"
             elif blended < 60:
                 band, color = "Medium", "#ff9800"
             else:
                 band, color = "High", "#f44336"
+
             st.markdown(f'<div style="font-size:1.3em;font-weight:bold;color:{color};">Risk: {band} ({blended:.1f}%)</div>', unsafe_allow_html=True)
             st.progress(min(int(blended), 100), text=f"{blended:.1f}%")
+
+            # --- Extra Details Hidden ---
             with st.expander("Details: Scores"):
                 st.write(f"Model probability: {model_pct:.1f}%")
                 st.write(f"Heuristic score: {heur_pct:.1f}%")
-            st.write("Similar claims:")
-            for r in result.get("similar_claims", []) or []:
-                st.write(f"- {r['claim_text']} (sim={r.get('similarity', r.get('similarity_score', 0.0)):.3f})")
-            st.write("\nLLM rationale:")
-            st.markdown(result.get("llm_reasoning", "(no rationale)"))
+
+            with st.expander("Similar Claims"):
+                for r in result.get("similar_claims", []) or []:
+                    st.write(f"- {r['claim_text']} (sim={r.get('similarity', r.get('similarity_score', 0.0)):.3f})")
 
 # Show history of past runs
 if st.session_state['history']:
